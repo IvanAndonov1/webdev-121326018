@@ -24,7 +24,7 @@ function getTools() {
   return [
     {
       name: 'find_lecture',
-      description: 'Find a lecture by its number. Use this to look up a specific lecture. Returns the lecture title and topics.',
+      description: 'Retrieves information about course content from locally stored data.',
       inputSchema: {
         type: 'object',
         properties: {
