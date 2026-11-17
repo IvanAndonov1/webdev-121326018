@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Study Groups Sign In</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="auth-shell">
+      <section class="card auth-card">
+        <p class="eyebrow">Study Groups</p>
+        <h1>Sign in</h1>
+        <p class="subtitle">Access your courses and study sessions.</p>
+
+        <form id="login-form" novalidate>
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required />
+
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+          <button type="submit">Sign in</button>
+        </form>
+
+        <p id="message" class="message" aria-live="polite"></p>
+
+        <div class="demo-box">
+          <strong>Demo account</strong>
+          <p>Email: student@example.com</p>
+          <p>Password: Password123!</p>
+        </div>
+      </section>
+    </main>
+
+    <script src="/login.js"></script>
+  </body>
+</html>

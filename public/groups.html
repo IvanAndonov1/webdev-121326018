@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Study Groups</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Study Groups</p>
+        <h1>Upcoming sessions</h1>
+      </div>
+      <button id="logout-button" class="secondary-button" type="button">Log out</button>
+    </header>
+
+    <main class="page-shell">
+      <section class="card">
+        <div id="status" class="status" aria-live="polite">Loading study groups…</div>
+        <div id="groups" class="group-grid" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="/groups.js"></script>
+  </body>
+</html>
