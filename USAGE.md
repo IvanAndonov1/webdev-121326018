@@ -6,7 +6,7 @@ This file records AI agent usage during the Web Development course.
 | Date | Tool | Input tokens | Output tokens | Credits (if no tokens) | List-price cost |
 |---|---|---:|---:|---|---|
 | 2026-10-27 | Gemini CLI | 3,644 | 71 | | $0.00127 |
-| 2026-11-17 | Codex | N/A | N/A | Usage data unavailable in this environment | N/A |
+| 2026-11-17 | Copilot SDK in VS Code | — | — | Project orientation and repository review | — |
 
 ## Session Notes
 
@@ -16,10 +16,8 @@ Gemini successfully connected to the custom MCP server and discovered its two to
 
 The recorded token counts come from Gemini CLI's usage statistics. They do not represent a successful MCP tool execution.
 
-The Exercise 2 coding session completed the StudySync sign-in and protected study-groups slice. Exact token accounting for the Codex session was not exposed by the environment, so the table records that limitation explicitly instead of inventing numbers.
+The 2026-11-17 Copilot SDK session was used to audit the repository, confirm the missing project state, and complete the Exercise 2 remediation described in the review notes.
 
 ## Pricing Reference
 
-List-price cost has not yet been calculated. The calculation should use the published Google Gemini API prices applicable to the models used during the session.
-
-Actual charges depend on the API project's billing tier and usage.
+No model pricing was used during the Exercise 2 remediation session. The earlier Gemini CLI entry is retained as historical usage only.

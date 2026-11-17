@@ -1,24 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Study Groups</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>StudySync | Study Groups</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 2rem; }
+      .shell { max-width: 900px; margin: 0 auto; }
+      .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+      form { background: white; border-radius: 12px; padding: 1rem; box-shadow: 0 10px 24px rgba(15,23,42,.08); margin-bottom: 1rem; }
+      label { display: block; margin-bottom: .4rem; font-weight: 600; }
+      input, textarea { width: 100%; box-sizing: border-box; padding: .7rem; margin-bottom: 1rem; border: 1px solid #cbd5e1; border-radius: 8px; }
+      button { background: #2563eb; color: white; border: none; border-radius: 8px; padding: .75rem 1rem; cursor: pointer; }
+      .logout { background: #0f172a; }
+      ul { list-style: none; padding: 0; }
+      li { background: white; border-radius: 12px; padding: 1rem; margin-bottom: .75rem; box-shadow: 0 10px 24px rgba(15,23,42,.05); }
+      .meta { display: flex; justify-content: space-between; gap: 1rem; }
+    </style>
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">Study Groups</p>
-        <h1>Upcoming sessions</h1>
+    <main class="shell">
+      <div class="topbar">
+        <h1>Study Groups</h1>
+        <form action="/logout" method="post">
+          <button class="logout" type="submit">Log out</button>
+        </form>
       </div>
-      <button id="logout-button" class="secondary-button" type="button">Log out</button>
-    </header>
 
-    <main class="page-shell">
-      <section class="card">
-        <div id="status" class="status" aria-live="polite">Loading study groups…</div>
-        <div id="groups" class="group-grid" aria-live="polite"></div>
+      <form id="group-form">
+        <h2>Create a group</h2>
+        <label for="group-name">Group name</label>
+        <input id="group-name" name="name" type="text" maxlength="120" required />
+
+        <label for="group-description">Description</label>
+        <textarea id="group-description" name="description" rows="3" maxlength="500"></textarea>
+
+        <button type="submit">Add group</button>
+      </form>
+
+      <section aria-live="polite">
+        <h2>Groups</h2>
+        <ul id="groups-list"></ul>
       </section>
     </main>
 

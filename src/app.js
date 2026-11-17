@@ -1,70 +1,71 @@
 const path = require('node:path');
-const bcrypt = require('bcrypt');
 const express = require('express');
 const session = require('express-session');
-const { createPool, initializeDatabase, seedDatabase } = require('./db.js');
+const db = require('./db');
 
-function createApp({ pool = createPool() } = {}) {
+function getSessionSecret() {
+  if (process.env.NODE_ENV === 'production') {
+    const secret = process.env.SESSION_SECRET || '';
+    if (!secret || secret === 'development-secret' || secret.length < 32) {
+      throw new Error('SESSION_SECRET must be set to a secure value in production.');
+    }
+    return secret;
+  }
+
+  return process.env.SESSION_SECRET || 'study-sync-dev-secret';
+}
+
+function isSecureCookie() {
+  if (process.env.NODE_ENV !== 'production') {
+    return false;
+  }
+
+  const publicBaseUrl = process.env.PUBLIC_BASE_URL || '';
+  return /^https:/i.test(publicBaseUrl);
+}
+
+function requireAuth(req, res, next) {
+  if (!req.session || !req.session.user) {
+    const nextUrl = encodeURIComponent(req.originalUrl || '/study-groups');
+    return res.redirect(`/login?next=${nextUrl}`);
+  }
+  return next();
+}
+
+function requireApiAuth(req, res, next) {
+  if (!req.session || !req.session.user) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  return next();
+}
+
+function createApp() {
   const app = express();
+  const publicDir = path.join(__dirname, '..', 'public');
 
-  app.use(express.urlencoded({ extended: false }));
-  app.use(express.json());
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true }));
   app.use(
     session({
-      secret: process.env.SESSION_SECRET || 'development-secret',
+      name: 'connect.sid',
+      secret: getSessionSecret(),
       resave: false,
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 1000 * 60 * 60 * 4,
+        secure: isSecureCookie(),
+        maxAge: 60 * 60 * 1000,
       },
-    })
+      rolling: true,
+    }),
   );
 
-  app.use(express.static(path.join(__dirname, '../public')));
-
-  function requireAuth(req, res, next) {
-    if (!req.session || !req.session.userId) {
-      return res.status(401).json({ error: 'Authentication required.' });
-    }
-    next();
-  }
-
-  function requireAuthPage(req, res, next) {
-    if (!req.session || !req.session.userId) {
-      return res.redirect('/login');
-    }
-    next();
-  }
-
-  app.get('/', (req, res) => {
-    if (req.session && req.session.userId) {
-      return res.redirect('/study-groups');
-    }
-    return res.redirect('/login');
-  });
-
   app.get('/login', (req, res) => {
-    if (req.session && req.session.userId) {
-      return res.redirect('/study-groups');
-    }
-    return res.sendFile(path.join(__dirname, '../public/login.html'));
+    res.sendFile(path.join(publicDir, 'login.html'));
   });
 
-  app.get('/study-groups', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/groups.html'));
-  });
-
-  app.get('/api/me', (req, res) => {
-    if (!req.session || !req.session.userId) {
-      return res.status(401).json({ error: 'Authentication required.' });
-    }
-    return res.json({ user: { id: req.session.userId, name: req.session.userName } });
-  });
-
-  app.post('/api/login', async (req, res) => {
+  app.post('/login', async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
 
@@ -72,99 +73,93 @@ function createApp({ pool = createPool() } = {}) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    try {
-      const userResult = await pool.query(
-        'SELECT id, email, full_name, password_hash FROM users WHERE email = $1',
-        [email]
-      );
-      const user = userResult.rows[0];
+    const user = await db.getUserByEmail(email);
+    const passwordHash = db.hashPassword(password);
 
-      if (!user) {
-        return res.status(401).json({ error: 'Invalid email or password.' });
-      }
-
-      const valid = await bcrypt.compare(password, user.password_hash);
-      if (!valid) {
-        return res.status(401).json({ error: 'Invalid email or password.' });
-      }
-
-      req.session.userId = user.id;
-      req.session.userName = user.full_name;
-      return res.json({
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.full_name,
-        },
-      });
-    } catch (error) {
-      return res.status(500).json({ error: 'Login failed. Please try again.' });
+    if (!user || user.password_hash !== passwordHash) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
     }
+
+    req.session.regenerate((regenerateError) => {
+      if (regenerateError) {
+        return res.status(500).json({ error: 'Unable to start a secure session.' });
+      }
+
+      req.session.user = { id: user.id, email: user.email, name: user.name };
+      req.session.save((saveError) => {
+        if (saveError) {
+          return res.status(500).json({ error: 'Unable to save the session.' });
+        }
+
+        const redirectUrl = typeof req.body?.next === 'string' && req.body.next ? req.body.next : '/study-groups';
+        return res.redirect(redirectUrl);
+      });
+    });
   });
 
-  app.post('/api/logout', (req, res) => {
+  app.post('/logout', (req, res) => {
+    const destroy = () => {
+      res.clearCookie('connect.sid', { path: '/' });
+      return res.redirect('/login');
+    };
+
     if (!req.session) {
-      return res.status(200).json({ success: true });
+      return destroy();
     }
 
     req.session.destroy((error) => {
       if (error) {
         return res.status(500).json({ error: 'Unable to log out.' });
       }
-      return res.json({ success: true });
+      return destroy();
     });
   });
 
-  app.get('/api/groups', requireAuth, async (req, res) => {
+  app.get(['/study-groups', '/groups.html'], requireAuth, (req, res) => {
+    res.sendFile(path.join(publicDir, 'groups.html'));
+  });
+
+  app.use(express.static(publicDir));
+
+  app.get('/api/groups', requireApiAuth, async (req, res) => {
     try {
-      const result = await pool.query(
-        `
-          SELECT
-            sg.id,
-            sg.name,
-            sg.description,
-            sg.meeting_day,
-            sg.meeting_time,
-            sg.max_members,
-            c.code AS course_code,
-            c.title AS course_title,
-            COUNT(DISTINCT gm.user_id) AS member_count,
-            BOOL_OR(gm.user_id = $1) AS is_member
-          FROM study_groups sg
-          JOIN courses c ON c.id = sg.course_id
-          LEFT JOIN group_memberships gm ON gm.group_id = sg.id
-          GROUP BY sg.id, c.code, c.title
-          ORDER BY c.code, sg.name;
-        `,
-        [req.session.userId]
-      );
-
-      const groups = result.rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        description: row.description,
-        meetingDay: row.meeting_day,
-        meetingTime: row.meeting_time,
-        maxMembers: Number(row.max_members),
-        courseCode: row.course_code,
-        courseTitle: row.course_title,
-        memberCount: Number(row.member_count),
-        isMember: row.is_member,
-      }));
-
+      const groups = await db.getGroups();
       return res.json(groups);
     } catch (error) {
-      return res.status(500).json({ error: 'Unable to load study groups.' });
+      return res.status(500).json({ error: 'Unable to load groups.' });
     }
+  });
+
+  app.post('/api/groups', requireApiAuth, async (req, res) => {
+    try {
+      const group = await db.createGroup({
+        name: req.body?.name,
+        description: req.body?.description || '',
+      });
+      return res.status(201).json(group);
+    } catch (error) {
+      return res.status(400).json({ error: error.message || 'Unable to create the group.' });
+    }
+  });
+
+  app.delete('/api/groups/:id', requireApiAuth, async (req, res) => {
+    try {
+      const deleted = await db.deleteGroup(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Group not found.' });
+      }
+      return res.status(204).end();
+    } catch (error) {
+      return res.status(400).json({ error: 'Unable to delete group.' });
+    }
+  });
+
+  app.get('/', (req, res) => {
+    const target = req.session && req.session.user ? '/study-groups' : '/login';
+    return res.redirect(target);
   });
 
   return app;
 }
 
-module.exports = {
-  createApp,
-  createPool,
-  initializeDatabase,
-  seedDatabase,
-};
+module.exports = { createApp, requireAuth, requireApiAuth, getSessionSecret, isSecureCookie };

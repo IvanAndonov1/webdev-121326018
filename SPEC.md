@@ -4,79 +4,86 @@
 Study groups.
 
 ## Goals
-- Help students quickly find study groups for the courses they are enrolled in and see the group schedule before they commit.
-- Let course leaders or group owners create and maintain a small, course-specific study community with a clear membership cap and a simple meeting plan.
-- Give a student one place to sign in, view relevant groups, and keep their account session secure while browsing protected data.
+- Help students find or create study groups around a topic, deadline, or course.
+- Let a signed-in student review nearby groups, create a new group, and remove one they created.
+- Keep the app easy to run in Codespaces with a local PostgreSQL database and simple browser-based flows.
 
 ## Non-goals
-- No payment flow, premium membership tier, or external billing integration.
-- No native mobile app or desktop client; the product is browser-based only.
-- No video chat, whiteboard, or video-conferencing service is hosted by the application.
-- No automated email notification service or campaign system is part of the initial product.
+- We are not building Google OAuth or other social sign-in for Exercise 2.
+- We are not implementing a model-powered recommender or AI-generated summaries yet.
+- We are not building a production-ready multi-tenant backend or a distributed cache.
+- We are not building chat, scheduling, or calendar integrations in this slice.
+- We are not building mobile-native clients or a desktop app.
 
 ## Constraints
-- The application stack is Node.js, Express, PostgreSQL, and vanilla browser JavaScript with session-based local authentication.
-- Passwords are stored as bcrypt hashes, never in plaintext, and server-side authorization checks run on every protected request.
-- Data persistence is in PostgreSQL, and every list screen used by the app reads from real database rows rather than static in-memory arrays.
-- Sensitive credentials are kept in environment variables and never committed to the repository; production and local values are separated by `.env` and `.env.example`.
+- The application must run in a simple Node.js and PostgreSQL setup, with no extra framework beyond Express.
+- Every request must be accountable to the database state and the authenticated user context.
+- The code must be safe against direct HTML injection from stored group names and descriptions.
+- The repository must keep the Exercise 1 MCP server working without changing its contract.
 
 ## The model feature
-- Model: Google Gemini 2.5 Flash via a server-side API call that is optional and guarded by a deterministic fallback.
-- Input: The app sends only the course code, the topic shortlist, the session duration, and the group goal, without personal student data beyond the request context needed for the feature.
-- Output: The app shows a suggested agenda with topic blocks, a recommended pacing plan, and a short note explaining that it is a recommendation rather than a fact.
-- When it fails: If the API key is missing, the provider is down, the request times out, or the model returns unusable JSON, the app falls back to a manual agenda template and clearly labels the output as a suggestion.
+- Model: Gemini 2.5 Flash, or a similar hosted model selected via environment configuration.
+- Input: the user provides a course topic, weak area, or study goal, and the app asks the model for suggestions.
+- Output: the model returns a small list of group names or revision prompts labeled as suggestions, never as facts the app already knows.
+- When it fails: the app shows a friendly fallback message, keeps the rest of the screen usable, and does not block the user from browsing study groups.
 
 ## Auth
-- Local: A student signs in with an email address and password. The password is hashed with bcrypt before storage, and the app validates the hash on each login attempt.
-- Provider: The application supports Google OAuth via a server-side authorization-code flow so a user can sign in with a verified Google identity when configured.
-- Linking: A local account and Google account are linked only after the provider email is verified and matched to an existing account owner or a newly created account using a same-person check; no blind merge on unverified email addresses is permitted.
+- Local: the app uses email and password sign-in against the `users` table in PostgreSQL.
+- Provider: Google OAuth is planned as a later project feature, but this Exercise 2 slice does not implement it yet.
+- Linking: a user who signs in with both local and provider-based auth is treated as the same account when the email matches, and that logic is verified during future auth work.
 
 ## MCP tools
 | Tool | What it does | Who may call it |
 | --- | --- | --- |
-| list_study_groups | Lists all visible study groups with course, time, and membership summary for an authenticated user. | Any authenticated student and group owner |
-| my_study_groups | Shows only the study groups a student currently belongs to, along with their chosen role in each group. | Any authenticated student |
-| join_study_group | Joins an open study group if the student is eligible and the membership cap has not been reached. | Any authenticated student |
+| `list_groups` | Lists all study groups with their names, descriptions, and timestamps. | Signed-in members and the app's own admin workflows. |
+| `find_group` | Finds one study group by its name or identifier and returns its details. | Signed-in members. |
+| `create_group` | Creates a new group and stores the database row if the data is valid. | Signed-in members. |
+| `delete_group` | Removes a group row from the database after verifying the caller is allowed to change it. | Signed-in members and admin workflows. |
 
 ## UI
-The frontend is a lightweight server-rendered and fetch-driven web app using Express plus vanilla JavaScript and CSS. The eventual experience includes at least these screens: a sign-in screen, a study-groups dashboard, and a group detail or ownership-management screen. Each screen handles all four states: loading, empty, error, and success. The design stays readable on narrow mobile widths and preserves clear focus styles for keyboard users.
+- Stack: Node.js, Express, PostgreSQL, HTML, CSS, and a small browser script with no extra framework.
+- Screens: login page, protected study-groups page, group create form, and empty/error states for the list.
+- The app keeps the main flow keyboard-friendly, uses visible focus styles, and avoids unsafe HTML interpolation when displaying stored values.
 
 ## Architecture
-Exercise 3 will trace one request through the full stack: an HTTP route handler receives the request, calls a service function for authorization and business rules, then reads or writes through the data access layer and PostgreSQL. The current Exercise 2 slice intentionally follows the same layering for theLogin and list endpoints; the separate MCP server is preserved as an external interface but it does not bypass this service boundary.
+- `server.js` boots the app and initializes the database schema.
+- `src/app.js` handles Express routes, login/logout flows, auth guarding, and authenticated API endpoints.
+- `src/db.js` owns the database queries, the schema bootstrap, and the deterministic seed logic for development.
+- `public/groups.html` and `public/groups.js` render and update the study-groups page in the browser.
+- The Exercise 1 MCP server in `mcp-server/server.js` stays separate and is not used as a direct database layer for the web app.
 
 ## Acceptance criteria
-- [AC-1] A student who has a valid local account can sign in with email and password and receive an authenticated session.
-- [AC-2] A student who enters an incorrect password sees a clear validation message and no session is created.
-- [AC-3] An unauthenticated user who requests the protected study-groups page or API is redirected or denied with an authorization error.
-- [AC-4] A group owner can create a study group for a course with a name, description, location, and meeting time without exposing admin-only data to other accounts.
-- [AC-5] A student can view a list of real study groups stored in PostgreSQL, including the course code, group title, description, and meeting details.
-- [AC-6] A group membership cap prevents a student from joining once the group is full, and the database records the membership as a single row per user and group.
-- [AC-7] A signed-in user who logs out cannot access protected group data in a later request, and the session cookie is invalidated.
-- [AC-8] A seeded user can sign in and see study groups loaded from PostgreSQL on the protected list screen.
-- [AC-9] A valid local account can perform a secure sign-in, while invalid credentials are rejected and the protected list remains unavailable without an authenticated session.
-- [AC-10] When a study-group row is updated in the database, the authenticated user sees the changed value after refreshing the list without restarting the server.
+- [AC-1] A registered student can sign in with a valid local email and password and is redirected to the study-groups page.
+- [AC-2] A student who enters an invalid email or password sees a 401-level authentication failure and no authenticated session is created.
+- [AC-3] A signed-in student can fetch the list of study groups from the database and see the rows returned in the API response.
+- [AC-4] A signed-in student can create a new group and the new row appears in the `study_groups` table.
+- [AC-5] A signed-in student can delete a group and the group disappears from the list in later authenticated requests.
+- [AC-6] A direct request to `/groups.html` without a valid session is redirected to `/login`.
+- [AC-7] The `/api/groups` route rejects unauthenticated requests with HTTP 401 and a readable error message.
+- [AC-8] A successful login regenerates the session ID before the user is attached to the session.
+- [AC-9] Logging out destroys the server-side session and clears the browser cookie that identifies it.
+- [AC-10] Malicious HTML stored in a group name or description is rendered as text by browser code instead of executing.
 
-### Slice 1: sign-in and the study groups list
-- [AC-11] An unauthenticated visitor cannot access the protected study-groups list and is redirected to the sign-in screen.
-- [AC-12] A valid seeded local account signs in and the list page shows at least three real study groups from the database.
-- [AC-13] After a database record is changed, the next authenticated refresh shows the updated data, and the session still remains valid until logout.
+### Slice 1: sign-in and study-groups list
+- [AC-8] A successful login regenerates the session ID before the user is attached to the session.
+- [AC-9] Logging out destroys the server-side session and clears the browser cookie that identifies it.
+- [AC-10] Malicious HTML stored in a group name or description is rendered as text by browser code instead of executing.
 
 ## Traceability
 | Criterion | Test |
 | --- | --- |
-| AC-1 | Exercise 3 later |
-| AC-2 | Exercise 3 later |
-| AC-3 | Exercise 3 later |
-| AC-4 | Exercise 3 later |
-| AC-5 | Exercise 3 later |
-| AC-6 | Exercise 3 later |
-| AC-7 | Exercise 3 later |
-| AC-8 | `test('AC-8 a seeded student can sign in and view study groups', ...)` |
-| AC-9 | `test('AC-9 invalid credentials and unauthenticated access are rejected', ...)` |
-| AC-10 | `test('AC-10 database changes are reflected in a refresh after login', ...)` |
-| AC-11 | Exercise 3 later |
-| AC-12 | Exercise 3 later |
-| AC-13 | Exercise 3 later |
+| AC-1 | `tests/app.test.js` login flow and authenticated group list checks |
+| AC-2 | `tests/app.test.js` invalid login rejection |
+| AC-3 | `tests/app.test.js` authenticated request sees database changes |
+| AC-4 | `tests/app.test.js` create group via authenticated API |
+| AC-5 | `tests/app.test.js` delete group removes it from list |
+| AC-6 | `tests/app.test.js` protected study-groups page redirect |
+| AC-7 | `tests/app.test.js` unauthenticated API rejection |
+| AC-8 | `tests/app.test.js` session fixation prevention |
+| AC-9 | `tests/app.test.js` logout destroys session and cookie |
+| AC-10 | `tests/app.test.js` malicious HTML is treated as text |
 
 ## Spec vs result
-The Slice 1 implementation delivered the sign-in flow and the protected study-groups list backed by PostgreSQL, including authenticated access rules and database-backed refresh behavior. One genuine refinement emerged during verification: the initial requirements did not explicitly say that the protected list must reject unauthenticated visitors with a clear authorization failure and allow a valid session to remain intact until logout. That edge case was resolved in the final acceptance criteria and the runtime tests so the requirement is precise and verifiable. The future Google OAuth, AI agenda feature, and additional group-management flows remain specified but intentionally not implemented in Exercise 2, which keeps the slice focused and testable.
+- Passed criteria: A local sign-in flow exists, authenticated API calls work against PostgreSQL, unauthenticated requests are rejected, session fixation prevention is tested, logout clears the session, and the browser script uses text-only rendering instead of `innerHTML`.
+- Missed or corrected behavior: The repository started without the project code, so the app had to be rebuilt around the required Exercise 2 features rather than fixing a partially completed implementation. The original template had no study-groups logic or tests, and the auth/session implementation was written to match the real code paths that exist now.
+- Actual specification refinement after testing: We kept the core study-groups slice and tightened the acceptance criteria so each one is directly testable in under a minute. Criteria AC-8, AC-9, and AC-10 are now the implemented Slice 1 criteria; the remaining acceptance criteria cover the whole project and remain distinct from future Exercise 3/4 work.

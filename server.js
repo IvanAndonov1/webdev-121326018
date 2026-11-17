@@ -1,24 +1,23 @@
-const dotenv = require('dotenv');
-dotenv.config();
+require('dotenv').config();
 
-const { createApp, createPool, initializeDatabase, seedDatabase } = require('./src/app.js');
+const { createApp } = require('./src/app');
+const { initializeDatabase, seedDevelopmentData } = require('./src/db');
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/study_groups_dev';
-const PORT = Number(process.env.PORT || 3000);
+async function start() {
+  await initializeDatabase();
 
-async function startServer() {
-  const pool = createPool(DATABASE_URL);
-  await initializeDatabase(pool);
-  await seedDatabase(pool);
+  if (process.env.NODE_ENV !== 'production') {
+    await seedDevelopmentData();
+  }
 
-  const app = createApp({ pool });
-
-  app.listen(PORT, () => {
-    console.log(`Study Groups app listening on http://localhost:${PORT}`);
+  const app = createApp();
+  const port = Number(process.env.PORT || 3000);
+  app.listen(port, () => {
+    console.log(`StudySync running on http://localhost:${port}`);
   });
 }
 
-startServer().catch((error) => {
-  console.error('Failed to start the app:', error);
+start().catch((error) => {
+  console.error('Failed to start StudySync:', error.message);
   process.exit(1);
 });

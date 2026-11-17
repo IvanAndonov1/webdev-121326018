@@ -1,117 +1,101 @@
-const fs = require('node:fs/promises');
+const fs = require('node:fs');
 const path = require('node:path');
-const bcrypt = require('bcrypt');
+const crypto = require('node:crypto');
 const { Pool } = require('pg');
 
-const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/study_groups_dev';
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/studysync';
+const pool = new Pool({ connectionString });
 
-function createPool(connectionString = process.env.DATABASE_URL || DEFAULT_DATABASE_URL) {
-  return new Pool({
-    connectionString,
-    max: 10,
-    idleTimeoutMillis: 30000,
-  });
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(String(password)).digest('hex');
 }
 
-async function runMigrations(pool) {
-  const migrationSql = await fs.readFile(path.join(__dirname, '../db/migrations/001_init.sql'), 'utf8');
-  await pool.query(migrationSql);
+async function initializeDatabase() {
+  const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
+  const schema = fs.readFileSync(schemaPath, 'utf8');
+  await pool.query(schema);
 }
 
-async function seedDatabase(pool) {
-  const passwordHash = await bcrypt.hash('Password123!', 10);
-  const mentorPassword = await bcrypt.hash('Mentor123!', 10);
+async function resetDatabase() {
+  await pool.query('TRUNCATE TABLE study_groups RESTART IDENTITY CASCADE');
+  await pool.query('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
+}
 
-  await pool.query(`
-    INSERT INTO courses (code, title) VALUES
-      ('CS101', 'Intro to Algorithms'),
-      ('MATH210', 'Discrete Mathematics'),
-      ('BIO250', 'Cell Biology')
-    ON CONFLICT (code) DO UPDATE SET title = EXCLUDED.title;
-  `);
-
-  await pool.query(`
-    INSERT INTO users (email, password_hash, full_name) VALUES
-      ('student@example.com', $1, 'Ava Student'),
-      ('mentor@example.com', $2, 'Mila Mentor')
-    ON CONFLICT (email) DO UPDATE
-      SET password_hash = EXCLUDED.password_hash,
-          full_name = EXCLUDED.full_name;
-  `, [passwordHash, mentorPassword]);
-
-  const groupSeed = [
-    {
-      courseCode: 'CS101',
-      name: 'Algorithms Sprint Session',
-      description: 'Daily review of sorting, graphs, and interview-style problems.',
-      day: 'Tuesday',
-      time: '18:00',
-      maxMembers: 6,
-    },
-    {
-      courseCode: 'MATH210',
-      name: 'Proofs and Practice Lab',
-      description: 'Work through proof templates and worksheet questions together.',
-      day: 'Wednesday',
-      time: '17:30',
-      maxMembers: 5,
-    },
-    {
-      courseCode: 'BIO250',
-      name: 'Exam Prep Cell Biology',
-      description: 'Recap cell structures, pathways, and key diagrams before the quiz.',
-      day: 'Thursday',
-      time: '19:00',
-      maxMembers: 4,
-    },
+async function seedDevelopmentData() {
+  const users = [
+    ['demo@studysync.local', 'demo123', 'Demo User'],
+    ['mentor@studysync.local', 'mentor123', 'Study Mentor']
   ];
 
-  for (const group of groupSeed) {
-    const courseResult = await pool.query('SELECT id FROM courses WHERE code = $1', [group.courseCode]);
-    const courseId = courseResult.rows[0].id;
-    const userResult = await pool.query("SELECT id FROM users WHERE email = 'student@example.com'");
-    const ownerId = userResult.rows[0].id;
-
-    await pool.query(`
-      INSERT INTO study_groups (course_id, created_by, name, description, meeting_day, meeting_time, max_members)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (course_id, name) DO UPDATE
-        SET description = EXCLUDED.description,
-            meeting_day = EXCLUDED.meeting_day,
-            meeting_time = EXCLUDED.meeting_time,
-            max_members = EXCLUDED.max_members;
-    `, [courseId, ownerId, group.name, group.description, group.day, group.time, group.maxMembers]);
-
-    const groupResult = await pool.query(
-      'SELECT id FROM study_groups WHERE course_id = $1 AND name = $2',
-      [courseId, group.name]
+  for (const [email, password, name] of users) {
+    await pool.query(
+      `INSERT INTO users (email, password_hash, name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO NOTHING`,
+      [email, hashPassword(password), name],
     );
-    const groupId = groupResult.rows[0].id;
+  }
 
-    await pool.query(`
-      INSERT INTO group_memberships (user_id, group_id, role)
-      VALUES ($1, $2, 'owner')
-      ON CONFLICT (user_id, group_id) DO NOTHING;
-    `, [ownerId, groupId]);
+  const groups = [
+    ['Algorithms Lab', 'Practice arrays, recursion and graphs together.'],
+    ['Exam Revision', 'Shared notes, flashcards, and challenge questions.'],
+    ['Project Planning', 'Coordinate the next sprint and deliverables.']
+  ];
 
-    const mentor = await pool.query("SELECT id FROM users WHERE email = 'mentor@example.com'");
-    if (mentor.rows[0]) {
-      await pool.query(`
-        INSERT INTO group_memberships (user_id, group_id, role)
-        VALUES ($1, $2, 'mentor')
-        ON CONFLICT (user_id, group_id) DO NOTHING;
-      `, [mentor.rows[0].id, groupId]);
-    }
+  for (const [name, description] of groups) {
+    await pool.query(
+      `INSERT INTO study_groups (name, description)
+       VALUES ($1, $2)
+       ON CONFLICT (name) DO NOTHING`,
+      [name, description],
+    );
   }
 }
 
-async function initializeDatabase(pool) {
-  await runMigrations(pool);
+async function getUserByEmail(email) {
+  const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+  return result.rows[0] || null;
+}
+
+async function getGroups() {
+  const result = await pool.query(
+    'SELECT id, name, description, created_at FROM study_groups ORDER BY created_at DESC, id DESC',
+  );
+  return result.rows;
+}
+
+async function createGroup({ name, description = '' }) {
+  const cleanName = String(name || '').trim();
+  const cleanDescription = String(description || '').trim();
+
+  if (!cleanName) {
+    throw new Error('Group name is required.');
+  }
+
+  const result = await pool.query(
+    `INSERT INTO study_groups (name, description)
+     VALUES ($1, $2)
+     RETURNING id, name, description, created_at`,
+    [cleanName.slice(0, 120), cleanDescription.slice(0, 500)],
+  );
+
+  return result.rows[0];
+}
+
+async function deleteGroup(id) {
+  const result = await pool.query('DELETE FROM study_groups WHERE id = $1', [id]);
+  return result.rowCount > 0;
 }
 
 module.exports = {
-  DEFAULT_DATABASE_URL,
-  createPool,
+  pool,
+  hashPassword,
   initializeDatabase,
-  seedDatabase,
+  resetDatabase,
+  seedDevelopmentData,
+  getUserByEmail,
+  getGroups,
+  createGroup,
+  deleteGroup,
+  connectionString,
 };

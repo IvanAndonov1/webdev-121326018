@@ -1,55 +1,23 @@
+#!/usr/bin/env node
+require('dotenv').config();
+
+const fs = require('node:fs');
+const path = require('node:path');
 const { Client } = require('pg');
-const { createPool, initializeDatabase, seedDatabase } = require('../src/db.js');
 
-const urls = [
-  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/study_groups_dev',
-  process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/study_groups_test',
-];
-
-function parseConnectionString(connectionString) {
-  const parsed = new URL(connectionString);
-  return {
-    host: parsed.hostname,
-    port: Number(parsed.port || 5432),
-    user: parsed.username || 'postgres',
-    password: parsed.password || 'postgres',
-    database: parsed.pathname.replace('/', ''),
-  };
-}
-
-async function ensureDatabaseExists(connectionString) {
-  const info = parseConnectionString(connectionString);
-  const adminClient = new Client({
-    host: info.host,
-    port: info.port,
-    user: info.user,
-    password: info.password,
-    database: 'postgres',
-  });
-
-  await adminClient.connect();
-  const result = await adminClient.query('SELECT 1 FROM pg_database WHERE datname = $1', [info.database]);
-
-  if (result.rowCount === 0) {
-    await adminClient.query(`CREATE DATABASE "${info.database}"`);
-  }
-
-  await adminClient.end();
-}
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/studysync';
+const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
+const schema = fs.readFileSync(schemaPath, 'utf8');
 
 async function main() {
-  for (const url of urls) {
-    await ensureDatabaseExists(url);
-    const pool = createPool(url);
-    await initializeDatabase(pool);
-    await seedDatabase(pool);
-    await pool.end();
-  }
-
-  console.log('Database setup complete.');
+  const client = new Client({ connectionString });
+  await client.connect();
+  await client.query(schema);
+  console.log(`Database schema ready for ${connectionString.replace(/:[^@]+@/, ':***@')}`);
+  await client.end();
 }
 
 main().catch((error) => {
-  console.error('Database setup failed:', error);
+  console.error('Database setup failed:', error.message);
   process.exit(1);
 });

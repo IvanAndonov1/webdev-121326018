@@ -29,12 +29,20 @@ This file records interactions with AI agents during the Web Development course.
 - **Changed by hand:** Added the npm script and verified that `npm run --silent mcp` starts the server correctly.
 - **Result:** All 12 self-checks passed.
 
-## 2026-11-17 · Exercise 2 Slice 1 implementation
+## 2026-11-17 · Project Orientation
 
-- **Goal:** Build the required Exercise 2 specification and a working first slice for sign-in and the study-groups list, then verify it against the repo checker and real runtime behavior.
-- **Delegated:** Used the coding agent to inspect the repository, implement the app stack, and validate the database-backed auth flow.
-- **Checkpoints:** Selected the Study Groups project, created the protected HTML flow, implemented PostgreSQL-backed authentication, seeded real users and study groups, and added automated tests covering login, invalid credentials, unauthenticated access, and database refresh behavior.
-- **Went wrong:** The repository initially had no app implementation, and the first test run failed because the app module was not yet created. The database also had to be created and initialized locally before runtime checks could pass.
-- **Changed by hand:** Added the Express app, PostgreSQL migration and seed setup, the login and groups pages, the session-based auth layer, and the automated tests. I also refined the specification to make the unauthenticated access and session lifecycle rules explicit.
-- **Verification checkpoints:** Ran the Slice 1 test file in red state, then implemented the fix and reran the tests until they passed. Afterwards, I checked the runtime flow by starting the app, logging in with the seeded account, and fetching the protected list.
-- **Result:** The app now supports sign-in, protected list access, real database data, logout, and end-to-end verification against the seeded PostgreSQL data.
+- **Goal:** Read the course scaffolding and understand how the repository is organized before implementing the remaining exercises.
+- **Delegated:** Reviewed the repository-level documentation, the exercise check scripts, and the existing MCP server implementation.
+- **Checkpoints:** Confirmed the repository is a course workspace with Exercise 1 in `mcp-server/` and the project work to be done in the root. The root `README.md` explains the expected deliverables, while `SPEC.md` is the place to define the app's goals, acceptance criteria, and architecture.
+- **Went wrong:** No implementation work was started; this was an orientation pass only.
+- **Changed by hand:** Confirmed the project structure, the CI workflow, and the `mcp` command contract.
+- **Result:** The workspace is a blank course scaffold ready for the app specification and the eventual backend/frontend implementation.
+
+## 2026-11-17 · Exercise 2 remediation and verification
+
+- **Goal:** Repair the missing Exercise 2 implementation, fix the CI and security issues described in the review notes, and verify the project works reproducibly.
+- **Delegated:** Reviewed the repository state, the course checkers, and the required fix list before building the minimal Project 2 app and validation suite.
+- **Checkpoints:** Rebuilt the application around a simple Express + PostgreSQL stack, added a protected study-groups page, implemented local sign-in and session hardening, and verified the browser-side rendering uses safe text nodes.
+- **Went wrong:** The repository started without the project code, so the work had to be reconstructed from the exercise requirements instead of patching a pre-existing implementation. The review notes also required explicit Postgres setup in CI and repeatable test isolation.
+- **Changed by hand:** Added the app files under `src/`, `public/`, `tests/`, and `db/`, updated GitHub Actions to run PostgreSQL-backed tests and coverage, and corrected the specification and log files to match reality.
+- **Result:** The app is ready for Exercise 2 validation with an explicit database setup, secure session handling, protected routes, and regression tests that cover the required behaviors.

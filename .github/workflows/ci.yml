@@ -9,6 +9,24 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/studysync_test
+      NODE_ENV: test
+      SESSION_SECRET: test-session-secret-for-github-actions-123
     steps:
       - uses: actions/checkout@v4
 
@@ -16,8 +34,13 @@ jobs:
         if: hashFiles('package.json') != ''
         uses: actions/setup-node@v4
         with:
-          # 22.9 or newer: the built-in coverage thresholds below landed in that version.
           node-version: '22.x'
+
+      - name: Prepare PostgreSQL test database
+        if: hashFiles('package.json') != ''
+        run: |
+          psql "$DATABASE_URL" -tc "SELECT 1 FROM pg_database WHERE datname = 'studysync_test'" | grep -q 1 || createdb studysync_test
+          node scripts/setup-db.js
 
       - name: Node tests
         if: hashFiles('package.json') != ''
@@ -68,6 +91,24 @@ jobs:
   # cannot find the code somebody looked at badly.
   coverage:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/studysync_test
+      NODE_ENV: test
+      SESSION_SECRET: test-session-secret-for-github-actions-123
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +117,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
+
+      - name: Prepare PostgreSQL test database
+        if: hashFiles('package.json') != ''
+        run: |
+          psql "$DATABASE_URL" -tc "SELECT 1 FROM pg_database WHERE datname = 'studysync_test'" | grep -q 1 || createdb studysync_test
+          node scripts/setup-db.js
 
       - name: Node coverage
         if: hashFiles('package.json') != ''

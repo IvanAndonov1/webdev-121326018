@@ -3,48 +3,47 @@
 Read this file at the start of every session. Keep it short and correct; update it when the project changes.
 
 ## Project
-StudySync is a browser-based study-groups application for students who want to find course-specific peer study sessions, join open groups, and keep a single authenticated account across local and provider-based sign-in flows. See SPEC.md for the goals, non-goals, and acceptance criteria.
+StudySync is a small study-group application for students who need a safe place to sign in, browse groups, and manage memberships in a single app. See `SPEC.md` for the goals, non-goals, and acceptance criteria.
 
 ## Commands
-- Install: npm install
-- Run: npm start
-- Test: npm test
-- Coverage: npm test -- --coverage
-- MCP server: npm run mcp
+- Install: `npm install`
+- Run: `npm start`
+- Test: `npm test`
+- Coverage: `npm run coverage`
+- MCP server: `npm run mcp`
 
 ## Conventions
-- Source layout: `server.js` starts the app, `src/` contains app and database helpers, `public/` contains HTML/CSS/JS for the browser UI, `db/migrations/` holds SQL migrations, and `scripts/` contains database setup utilities.
-- Business rules live in the app service layer rather than in route handlers; HTTP and MCP requests both go through the same logic.
-- Database access is isolated to the data layer and all queries use parameterized SQL.
-- Migrations are stored in versioned SQL files and are the canonical way to create or alter tables.
-- Each test should target real behavior against a real database, using a deterministic seed and test database rather than mock-only assertions.
-- Authentication is enforced server-side and never trusted only from the front end.
+- This repository keeps the Exercise 1 MCP server in `mcp-server/` and the web app at the repository root.
+- Route handlers live in `src/app.js`; the database helpers live in `src/db.js`; the browser logic for the groups page is in `public/groups.js`.
+- Errors are returned as HTTP status codes and JSON error messages for authenticated API calls. The browser uses redirects for protected pages and a JSON error body for API requests.
+- Database schemas and deterministic seed data are kept in `db/schema.sql` and `src/db.js`.
 
 ## Layers
-Requests arrive two ways and both end in the same place:
+The current code does not yet have a full service-layer architecture. The actual flow is:
 
-- HTTP route handler → service → data access → database
-- MCP tool → the same service → data access → database
+- HTTP route handler → data access helper → PostgreSQL
+- Browser script → authenticated API route → data access helper → PostgreSQL
+- MCP tool → isolated JSON-RPC logic in `mcp-server/server.js` and not shared with the web app yet
 
-A route handler reads the request and turns a result into a status code. A service holds the rules and knows nothing about HTTP or about MCP. Only the data layer writes SQL. An MCP tool that talks to the database directly is a second, unguarded way into your data: never add one.
+This repository keeps the course MCP server unchanged; it is a separate interface from the Express app.
 
 ## The model feature
-- The provider is named in exactly one file: `SPEC.md` under the model feature section.
-- The key comes from an environment variable and is never committed or logged.
-- Every call has a timeout and a deterministic fallback, so the app still works when the provider is down or rate-limited.
-- The model's output is re-checked against real data before anything is saved or shown.
-- Tests never call the provider: they pass in a fake client.
+- The provider is named in exactly one file: `SPEC.md` under `The model feature`.
+- The key comes from the environment and is never committed or logged.
+- Every call should timeout and fall back to a safe message when the provider is slow or rate-limited.
+- The model output is treated as a suggestion and is shown as such in the UI, not as a fact the app knows.
+- Tests do not call the provider; they pass in a fake client or assert the fallback behavior.
 
 ## The MCP server
-- Lives in `mcp-server/`, grew out of Exercise 1.
-- Every tool calls a service function; none touches the data layer or the database directly.
-- It carries a user, and enforces exactly the same authorization rules as the HTTP API.
-- Adding a tool means adding a row to the table in `SPEC.md` too.
+- Lives in `mcp-server/` and grew out of Exercise 1.
+- It stays a separate JSON-RPC interface and is not reimplemented as a direct database client from the web app.
+- It is started with `npm run mcp` and continues to expose course data tools only.
+- Any new tool needs a matching row in `SPEC.md` under the MCP tools table.
 
 ## Tests and coverage
-- Every acceptance criterion in `SPEC.md` has an id like `AC-3`, and a test whose title contains that id.
-- The coverage gate runs in CI: 100% of the service layer, 80% overall.
-- A test is evidence. Changing a test so the code passes destroys the evidence.
+- Every acceptance criterion in `SPEC.md` has an id like `AC-3` and a test whose title contains the id.
+- The coverage gate is enforced in CI with a 100% service-layer threshold and 80% overall threshold.
+- A test is evidence; changing it to pass without the behaviour is not a valid fix.
 
 ## Always ask before
 - deleting files or folders

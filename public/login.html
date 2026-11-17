@@ -1,38 +1,31 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Study Groups Sign In</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>StudySync Login</title>
+    <style>
+      body { font-family: sans-serif; margin: 2rem; background: #f6f8fc; color: #1f2937; }
+      .card { max-width: 360px; margin: 3rem auto; background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 20px rgba(15,23,42,.08); }
+      label { display: block; margin-bottom: .4rem; font-weight: 600; }
+      input { width: 100%; box-sizing: border-box; padding: .75rem; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 8px; }
+      button { width: 100%; padding: .75rem; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; }
+      .hint { margin-top: 1rem; color: #475569;}
+    </style>
   </head>
   <body>
-    <main class="auth-shell">
-      <section class="card auth-card">
-        <p class="eyebrow">Study Groups</p>
-        <h1>Sign in</h1>
-        <p class="subtitle">Access your courses and study sessions.</p>
+    <main class="card">
+      <h1>StudySync</h1>
+      <form action="/login" method="post">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" value="demo@studysync.local" required />
 
-        <form id="login-form" novalidate>
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" autocomplete="email" required />
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" value="demo123" required />
 
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required />
-
-          <button type="submit">Sign in</button>
-        </form>
-
-        <p id="message" class="message" aria-live="polite"></p>
-
-        <div class="demo-box">
-          <strong>Demo account</strong>
-          <p>Email: student@example.com</p>
-          <p>Password: Password123!</p>
-        </div>
-      </section>
+        <button type="submit">Sign in</button>
+      </form>
+      <p class="hint">Use the demo account to explore the groups view.</p>
     </main>
-
-    <script src="/login.js"></script>
   </body>
 </html>
