@@ -43,7 +43,8 @@ jobs:
       - name: Prepare PostgreSQL test database
         if: hashFiles('package.json') != ''
         run: |
-          psql "$DATABASE_URL" -tc "SELECT 1 FROM pg_database WHERE datname = 'studysync_test'" | grep -q 1 || createdb studysync_test
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          psql "$DATABASE_URL" -tc "SELECT 1 FROM pg_database WHERE datname = 'studysync_test'" | grep -q 1 || createdb -h 127.0.0.1 -p 5432 -U postgres studysync_test
           node scripts/setup-db.js
 
       - name: Node tests
@@ -129,7 +130,8 @@ jobs:
       - name: Prepare PostgreSQL test database
         if: hashFiles('package.json') != ''
         run: |
-          psql "$DATABASE_URL" -tc "SELECT 1 FROM pg_database WHERE datname = 'studysync_test'" | grep -q 1 || createdb studysync_test
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          psql "$DATABASE_URL" -tc "SELECT 1 FROM pg_database WHERE datname = 'studysync_test'" | grep -q 1 || createdb -h 127.0.0.1 -p 5432 -U postgres studysync_test
           node scripts/setup-db.js
 
       - name: Node coverage
