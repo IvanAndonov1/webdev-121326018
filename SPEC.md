@@ -55,35 +55,48 @@ Study groups.
 ## Acceptance criteria
 - [AC-1] A registered student can sign in with a valid local email and password and is redirected to the study-groups page.
 - [AC-2] A student who enters an invalid email or password sees a 401-level authentication failure and no authenticated session is created.
-- [AC-3] A signed-in student can fetch the list of study groups from the database and see the rows returned in the API response.
-- [AC-4] A signed-in student can create a new group and the new row appears in the `study_groups` table.
-- [AC-5] A signed-in student can delete a group and the group disappears from the list in later authenticated requests.
-- [AC-6] A direct request to `/groups.html` without a valid session is redirected to `/login`.
-- [AC-7] The `/api/groups` route rejects unauthenticated requests with HTTP 401 and a readable error message.
-- [AC-8] A successful login regenerates the session ID before the user is attached to the session.
-- [AC-9] Logging out destroys the server-side session and clears the browser cookie that identifies it.
-- [AC-10] Malicious HTML stored in a group name or description is rendered as text by browser code instead of executing.
+- [AC-3] The database stores at least users, courses, study groups, and group memberships with valid foreign keys.
+- [AC-4] A study group belongs to exactly one course and exactly one owner.
+- [AC-5] The application has at least one many-to-many user-to-group membership relationship.
+- [AC-6] Google or another provider-based sign-in and secure account linking are implemented in the full project.
+- [AC-7] The full project provides at least three UI screens and keyboard-visible focus.
+- [AC-8] The full project integrates a hosted model and displays a timeout or fallback message for provider failures.
+- [AC-9] The full project exposes at least three project-specific MCP tools through the Exercise 1 server boundary.
+- [AC-10] The full project exposes a REST API and enforces server-side authorization.
 
 ### Slice 1: sign-in and study-groups list
-- [AC-8] A successful login regenerates the session ID before the user is attached to the session.
-- [AC-9] Logging out destroys the server-side session and clears the browser cookie that identifies it.
-- [AC-10] Malicious HTML stored in a group name or description is rendered as text by browser code instead of executing.
+- [AC-11] A signed-in student can fetch a database-backed list of groups with course and owner information.
+- [AC-12] A signed-in student can create a group that is owned by that student's authenticated user record.
+- [AC-13] Only the owner can delete a group; another authenticated user receives 403 and the unauthenticated response is 401.
+- [AC-14] A successful login regenerates the session ID before the user is attached to the session.
+- [AC-15] Logging out destroys the server-side session and clears the browser cookie that identifies it.
+- [AC-16] A direct request to `/groups.html` or `/api/groups` without a valid session is rejected with the appropriate redirect or 401.
+- [AC-17] Malicious HTML stored in a group name or description is rendered as text by browser code instead of executing.
+- [AC-18] Database setup is repeatable and test state is isolated, resetting only the dedicated test database.
 
 ## Traceability
 | Criterion | Test |
 | --- | --- |
-| AC-1 | `tests/app.test.js` login flow and authenticated group list checks |
-| AC-2 | `tests/app.test.js` invalid login rejection |
-| AC-3 | `tests/app.test.js` authenticated request sees database changes |
-| AC-4 | `tests/app.test.js` create group via authenticated API |
-| AC-5 | `tests/app.test.js` delete group removes it from list |
-| AC-6 | `tests/app.test.js` protected study-groups page redirect |
-| AC-7 | `tests/app.test.js` unauthenticated API rejection |
-| AC-8 | `tests/app.test.js` session fixation prevention |
-| AC-9 | `tests/app.test.js` logout destroys session and cookie |
-| AC-10 | `tests/app.test.js` malicious HTML is treated as text |
+| AC-1 | `tests/app.test.js` valid local login |
+| AC-2 | `tests/app.test.js` invalid password rejection |
+| AC-3 | `tests/app.test.js` course, group, and membership database relationships |
+| AC-4 | `tests/app.test.js` group course and owner foreign keys |
+| AC-5 | `tests/app.test.js` unique many-to-many membership |
+| AC-6 | Specification only; provider linking is a future project criterion |
+| AC-7 | Specification only; additional screens are a future project criterion |
+| AC-8 | Specification only; model integration is a future project criterion |
+| AC-9 | MCP checker and specification tool table |
+| AC-10 | `tests/app.test.js` API and server-side ownership authorization |
+| AC-11 | `tests/app.test.js` authenticated database-backed group list |
+| AC-12 | `tests/app.test.js` group creation assigns authenticated owner |
+| AC-13 | `tests/app.test.js` owner, forbidden, unauthenticated, and missing deletion outcomes |
+| AC-14 | `tests/app.test.js` session fixation prevention |
+| AC-15 | `tests/app.test.js` logout destroys session and clears cookie |
+| AC-16 | `tests/app.test.js` protected page and API authentication |
+| AC-17 | `tests/app.test.js` malicious HTML is treated as text |
+| AC-18 | `tests/app.test.js` database reset and repeatable setup |
 
 ## Spec vs result
 - Passed criteria: A local sign-in flow exists, authenticated API calls work against PostgreSQL, unauthenticated requests are rejected, session fixation prevention is tested, logout clears the session, and the browser script uses text-only rendering instead of `innerHTML`.
-- Missed or corrected behavior: The repository started without the project code, so the app had to be rebuilt around the required Exercise 2 features rather than fixing a partially completed implementation. The original template had no study-groups logic or tests, and the auth/session implementation was written to match the real code paths that exist now.
-- Actual specification refinement after testing: We kept the core study-groups slice and tightened the acceptance criteria so each one is directly testable in under a minute. Criteria AC-8, AC-9, and AC-10 are now the implemented Slice 1 criteria; the remaining acceptance criteria cover the whole project and remain distinct from future Exercise 3/4 work.
+- Missed or corrected behavior: Passwords now use bcrypt instead of unsalted SHA-256, the schema includes courses and memberships with ownership, and deletion is authorized on the server. The original two-table implementation and duplicate Slice 1 identifiers were corrected.
+- Actual specification refinement after testing: Full-project criteria remain the first ten and uniquely numbered. Slice 1 criteria start at AC-11 so the vertical slice is observable, testable, and distinct from future provider, model, and MCP work.

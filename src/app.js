@@ -74,9 +74,11 @@ function createApp() {
     }
 
     const user = await db.getUserByEmail(email);
-    const passwordHash = db.hashPassword(password);
+    const passwordMatches = user
+      ? await db.verifyPassword(password, user.password_hash)
+      : false;
 
-    if (!user || user.password_hash !== passwordHash) {
+    if (!passwordMatches) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
@@ -124,7 +126,10 @@ function createApp() {
   app.get('/api/groups', requireApiAuth, async (req, res) => {
     try {
       const groups = await db.getGroups();
-      return res.json(groups);
+      return res.json(groups.map((group) => ({
+        ...group,
+        is_owner: Number(group.owner_id) === Number(req.session.user.id),
+      })));
     } catch (error) {
       return res.status(500).json({ error: 'Unable to load groups.' });
     }
@@ -135,8 +140,10 @@ function createApp() {
       const group = await db.createGroup({
         name: req.body?.name,
         description: req.body?.description || '',
+        courseId: req.body?.courseId,
+        ownerId: req.session.user.id,
       });
-      return res.status(201).json(group);
+      return res.status(201).json({ ...group, is_owner: true });
     } catch (error) {
       return res.status(400).json({ error: error.message || 'Unable to create the group.' });
     }
@@ -144,9 +151,12 @@ function createApp() {
 
   app.delete('/api/groups/:id', requireApiAuth, async (req, res) => {
     try {
-      const deleted = await db.deleteGroup(req.params.id);
-      if (!deleted) {
+      const result = await db.deleteGroup(req.params.id, req.session.user.id);
+      if (result.status === 'not-found') {
         return res.status(404).json({ error: 'Group not found.' });
+      }
+      if (result.status === 'forbidden') {
+        return res.status(403).json({ error: 'Only the group owner can delete this group.' });
       }
       return res.status(204).end();
     } catch (error) {

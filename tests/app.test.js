@@ -43,7 +43,7 @@ test.afterEach(async () => {
   await resetDatabase();
 });
 
-test('AC-8 the database change is visible in a later authenticated request', async (t) => {
+test('AC-11 the database change is visible in a later authenticated group list request', async (t) => {
   t.after(async () => {
     await resetDatabase();
   });
@@ -65,7 +65,7 @@ test('AC-8 the database change is visible in a later authenticated request', asy
   assert.ok(list.body.some((group) => group.id === created.body.id && group.name === 'Night Review'));
 });
 
-test('AC-9 removing a database row makes it disappear from the list', async (t) => {
+test('AC-13 the owner can remove a database row and it disappears from the list', async (t) => {
   t.after(async () => {
     await resetDatabase();
   });
@@ -277,7 +277,12 @@ test('createGroup and deleteGroup failure branches are exercised', async () => {
 
   try {
     await assert.rejects(() => db.createGroup({ name: '' }), /Group name is required\./);
-    const validGroup = await db.createGroup({ name: 'Valid Group', description: '' });
+    const validGroup = await db.createGroup({
+      name: 'Valid Group',
+      description: '',
+      ownerId: 1,
+      courseId: 1,
+    });
     assert.equal(validGroup.name, 'Valid Group');
 
     db.createGroup = async () => { throw new Error('create failed'); };
@@ -338,6 +343,12 @@ test('login and protected page branches cover the remaining auth flow', async ()
     .expect(401);
   assert.equal(invalidPassword.body.error, 'Invalid email or password.');
 
+  const unknownEmail = await request(app)
+    .post('/login')
+    .send({ email: 'missing@studysync.local', password: 'wrongpass' })
+    .expect(401);
+  assert.equal(unknownEmail.body.error, 'Invalid email or password.');
+
   const nextRedirect = await request(app)
     .post('/login')
     .send({ email: 'demo@studysync.local', password: 'demo123', next: '/study-groups' })
@@ -395,6 +406,151 @@ test('database module falls back to the local PostgreSQL default when no DATABAS
     }
     delete require.cache[require.resolve('../src/db')];
     require('../src/db');
+  }
+});
+
+test('AC-1, AC-2 passwords use bcrypt and reject invalid passwords', async () => {
+  const password = 'bcrypt-validation-password';
+  const hash = await db.hashPassword(password);
+
+  assert.notEqual(hash, password);
+  assert.match(hash, /^\$2[aby]\$/);
+  assert.equal(await db.verifyPassword(password, hash), true);
+  assert.equal(await db.verifyPassword('wrong-password', hash), false);
+  assert.equal(await db.verifyPassword(password, null), false);
+  assert.equal(await db.verifyPassword(password, 42), false);
+
+  const demo = await db.getUserByEmail('demo@studysync.local');
+  assert.match(demo.password_hash, /^\$2[aby]\$/);
+  assert.equal(await db.verifyPassword('demo123', demo.password_hash), true);
+  assert.equal(await db.verifyPassword('incorrect', demo.password_hash), false);
+});
+
+test('AC-3, AC-4, AC-5 database relationships are seeded and constrained', async () => {
+  const courses = await db.pool.query('SELECT code, title FROM courses ORDER BY code');
+  assert.ok(courses.rows.length >= 3);
+
+  const groups = await db.pool.query(`
+    SELECT g.name, c.code AS course_code, u.email AS owner_email
+    FROM study_groups g
+    JOIN courses c ON c.id = g.course_id
+    JOIN users u ON u.id = g.owner_id
+    ORDER BY g.name
+  `);
+  assert.ok(groups.rows.length >= 3);
+  assert.ok(groups.rows.every((group) => group.course_code && group.owner_email));
+
+  await assert.rejects(
+    () => db.pool.query(
+      `INSERT INTO group_memberships (user_id, group_id)
+       SELECT u.id, g.id FROM users u CROSS JOIN study_groups g LIMIT 1`,
+    ).then(async () => db.pool.query(
+      `INSERT INTO group_memberships (user_id, group_id)
+       SELECT u.id, g.id FROM users u CROSS JOIN study_groups g LIMIT 1`,
+    )),
+  );
+
+  const membershipCount = await db.pool.query(
+    'SELECT COUNT(*)::int AS count FROM group_memberships',
+  );
+  assert.ok(membershipCount.rows[0].count >= 1);
+});
+
+test('AC-12 group creation assigns the authenticated owner', async () => {
+  const agent = request.agent(app);
+  await createSessionCookie(agent);
+
+  const created = await agent
+    .post('/api/groups')
+    .send({ name: 'Owned Slice Group', description: 'Owned by Demo', courseId: 1 })
+    .expect(201);
+
+  assert.equal(created.body.owner_id, 1);
+  assert.equal(created.body.is_owner, true);
+
+  const stored = await db.pool.query(
+    'SELECT owner_id, course_id FROM study_groups WHERE id = $1',
+    [created.body.id],
+  );
+  assert.equal(stored.rows[0].owner_id, 1);
+  assert.equal(stored.rows[0].course_id, 1);
+});
+
+test('AC-13 owner, forbidden, unauthenticated, and nonexistent deletion outcomes', async () => {
+  const owner = request.agent(app);
+  await createSessionCookie(owner, 'demo@studysync.local', 'demo123');
+  const created = await owner
+    .post('/api/groups')
+    .send({ name: 'Authorization Group', description: 'Owner-only deletion' })
+    .expect(201);
+
+  const other = request.agent(app);
+  await createSessionCookie(other, 'mentor@studysync.local', 'mentor123');
+  const forbidden = await other
+    .delete(`/api/groups/${created.body.id}`)
+    .expect(403);
+  assert.equal(forbidden.body.error, 'Only the group owner can delete this group.');
+
+  await request(app)
+    .delete(`/api/groups/${created.body.id}`)
+    .expect(401);
+
+  await owner
+    .delete(`/api/groups/${created.body.id}`)
+    .expect(204);
+
+  await owner
+    .delete('/api/groups/999999')
+    .expect(404);
+});
+
+test('database seed safely replaces legacy development password hashes and is repeatable', async () => {
+  await db.pool.query(
+    `UPDATE users SET password_hash = '64-character-legacy-sha256-placeholder'
+     WHERE email = 'demo@studysync.local'`,
+  );
+  await seedDevelopmentData();
+  const migrated = await db.getUserByEmail('demo@studysync.local');
+  assert.match(migrated.password_hash, /^\$2[aby]\$/);
+  assert.equal(await db.verifyPassword('demo123', migrated.password_hash), true);
+
+  await seedDevelopmentData();
+  await seedDevelopmentData();
+  const count = await db.pool.query('SELECT COUNT(*)::int AS count FROM study_groups');
+  assert.equal(count.rows[0].count, 3);
+});
+
+test('group creation validates owner and course, and deleteGroup handles failures', async () => {
+  await assert.rejects(
+    () => db.createGroup({ name: 'Missing Owner', ownerId: null }),
+    /A valid group owner is required/,
+  );
+  await assert.rejects(
+    () => db.createGroup({ name: 'Missing Course', ownerId: 1, courseId: 999999 }),
+    /A valid course is required/,
+  );
+
+  const originalQuery = db.pool.query;
+  db.pool.query = async () => { throw new Error('transaction failed'); };
+  try {
+    await assert.rejects(
+      () => db.deleteGroup(1, 1),
+      /transaction failed/,
+    );
+  } finally {
+    db.pool.query = originalQuery;
+  }
+
+  db.pool.query = async (sql) => {
+    if (sql.startsWith('SELECT id, owner_id')) {
+      return { rowCount: 1, rows: [{ id: 1, owner_id: 1 }] };
+    }
+    return { rowCount: 0, rows: [] };
+  };
+  try {
+    assert.deepEqual(await db.deleteGroup(1, 1), { status: 'forbidden' });
+  } finally {
+    db.pool.query = originalQuery;
   }
 });
 

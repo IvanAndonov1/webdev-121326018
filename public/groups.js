@@ -35,13 +35,14 @@ function renderGroups(groups) {
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.textContent = 'Delete';
-    deleteButton.addEventListener('click', async () => {
-      await fetch(`/api/groups/${group.id}`, { method: 'DELETE' });
-      await loadGroups();
-    });
-
     meta.appendChild(heading);
-    meta.appendChild(deleteButton);
+    if (group.is_owner) {
+      deleteButton.addEventListener('click', async () => {
+        await fetch(`/api/groups/${group.id}`, { method: 'DELETE' });
+        await loadGroups();
+      });
+      meta.appendChild(deleteButton);
+    }
 
     const description = document.createElement('p');
     description.textContent = group.description || 'No description provided.';

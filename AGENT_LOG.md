@@ -46,3 +46,11 @@ This file records interactions with AI agents during the Web Development course.
 - **Went wrong:** The repository started without the project code, so the work had to be reconstructed from the exercise requirements instead of patching a pre-existing implementation. The review notes also required explicit Postgres setup in CI and repeatable test isolation.
 - **Changed by hand:** Added the app files under `src/`, `public/`, `tests/`, and `db/`, updated GitHub Actions to run PostgreSQL-backed tests and coverage, and corrected the specification and log files to match reality.
 - **Result:** The app is ready for Exercise 2 validation with an explicit database setup, secure session handling, protected routes, and regression tests that cover the required behaviors.
+
+## 2026-11-17 · Final Exercise 2 corrections
+
+- **Goal:** Replace SHA-256 password storage with bcrypt, restore the course/group/membership relational model, and enforce study-group ownership authorization without changing Exercise 1 MCP behavior.
+- **Checkpoints:** Added bcrypt password hashing and comparison, deterministic course and membership seeding, course and owner foreign keys, transactional owner checks for deletion, owner-aware browser controls, and additional PostgreSQL integration tests.
+- **Went wrong:** The first PostgreSQL test run found no local listener on the test port, so the existing test container was started and the suite was rerun.
+- **Changed by hand:** Updated `src/db.js`, `src/app.js`, `public/groups.js`, `db/schema.sql`, `SPEC.md`, `AGENT_LOG.md`, and `USAGE.md`; updated acceptance-criteria numbering and traceability.
+- **Result:** The local Node test suite passed 15/15 after the PostgreSQL test database was available.

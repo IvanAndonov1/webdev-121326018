@@ -7,6 +7,7 @@ This file records AI agent usage during the Web Development course.
 |---|---|---:|---:|---|---|
 | 2026-10-27 | Gemini CLI | 3,644 | 71 | | $0.00127 |
 | 2026-11-17 | Copilot SDK in VS Code | — | — | Project orientation and repository review | — |
+| 2026-11-17 | Copilot SDK in VS Code | — | — | Final Exercise 2 password, schema, ownership, test, and documentation corrections | — |
 
 ## Session Notes
 
